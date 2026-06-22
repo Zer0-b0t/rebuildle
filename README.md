@@ -14,14 +14,10 @@ No build step, no server.
 - **Daily** — one shared puzzle per day (same team for everyone), drawn from the
   recognizable-teams pool with a year-seeded rotation.
 - **Free Play** — endless rounds; **Normal** (recognizable teams) or **Hard** (every team).
-- 8-guess limit. Results share as an emoji grid.
+- 5-guess limit. Results share as an emoji grid.
 
 ### Comparison columns
-Team · Rookie Year · Clearance · Serialization · Shooter · Team Color · Climb · Intake
-
-- **Shooter** — `Turret` / `Double Turret` / `Dumper`. Single vs double turret is an
-  orange *partial* match.
-- **Team Color** — a set of 1–2 colors; green = same set, yellow = shares one, gray = none.
+Team · Rookie Year · Clearance · Serialization · Shooter · Team Color · Climb · Intake (as a filler)
 
 ## Data
 Robot attributes live in [`rebuildle_data.json`](rebuildle_data.json), exported by the
