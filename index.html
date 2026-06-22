@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rebuildle — Guess the REBUILT Robot</title>
+
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Roboto — the exact type family The Blue Alliance serves (Roboto, sans-serif).
+       Roboto Slab / Condensed / Mono are the accent cuts TBA ships alongside it. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700;900&family=Roboto+Condensed:wght@400;700&family=Roboto+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+  <!-- Make Roboto the default Tailwind `font-sans` so every utility resolves to TBA's typeface -->
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Roboto', 'sans-serif'],
+            condensed: ['"Roboto Condensed"', 'sans-serif'],
+            mono: ['"Roboto Mono"', 'monospace']
+          }
+        }
+      }
+    };
+  </script>
+
+  <style>
+    :root {
+      --tba-blue: #3f51b5;
+      --tba-blue-dark: #303f9f;
+      --correct: #22c55e;
+      --wrong: #ef4444;
+    }
+
+    /* Exact TBA stack: body { font-family: Roboto, sans-serif; color: #333 } */
+    html, body { font-family: 'Roboto', sans-serif; }
+    body { background-color: #f8f9fa; color: #333333; }
+
+    /* ---- Guess grid layout (shared by header + rows) ---- */
+    .grid-row {
+      display: grid;
+      grid-template-columns: 230px repeat(7, 116px);
+      gap: 8px;
+    }
+
+    .cell {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border-radius: 10px;
+      color: #ffffff;
+      font-weight: 700;
+      min-height: 92px;
+      padding: 8px 6px;
+      font-size: 13px;
+      line-height: 1.2;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+    }
+
+    /* Team-color swatch chip (double border so White & Black stay visible) */
+    .swatch {
+      display: inline-block;
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      border: 2px solid rgba(255,255,255,0.9);
+      box-shadow: 0 0 0 1px rgba(0,0,0,0.25);
+    }
+
+    .head-cell {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      border-radius: 8px;
+      background: #eef0fb;
+      color: var(--tba-blue-dark);
+      font-weight: 700;
+      font-size: 11px;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      min-height: 44px;
+      padding: 6px;
+    }
+
+    /* ---- Team identifier cell ---- */
+    .thumb {
+      position: relative;
+      width: 46px;
+      height: 46px;
+      border-radius: 8px;
+      overflow: hidden;
+      margin-bottom: 4px;
+      flex-shrink: 0;
+      background: rgba(255,255,255,0.25);
+    }
+    .thumb .placeholder {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 12px;
+      font-weight: 900;
+      color: #ffffff;
+      background: rgba(0,0,0,0.18);
+    }
+    .thumb img {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* ---- Autocomplete dropdown ---- */
+    .sg {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+      padding: 10px 14px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 14px;
+    }
+    .sg:last-child { border-bottom: none; }
+    .sg:hover, .sg.active { background: #eef0fb; }
+
+    /* ---- Mode-select cards ---- */
+    .mode-card {
+      width: 100%;
+      text-align: left;
+      border: 1px solid #e2e5ee;
+      border-radius: 12px;
+      padding: 14px 16px;
+      transition: all 0.16s ease;
+      background: #fff;
+      cursor: pointer;
+    }
+    .mode-card:hover {
+      border-color: var(--tba-blue);
+      background: #f5f6ff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(63, 81, 181, 0.12);
+    }
+    .mode-card .mc-title { font-weight: 700; color: #1f2440; font-size: 15px; }
+    .mode-card .mc-sub { font-size: 12px; color: #6b7280; margin-top: 2px; }
+
+    /* ---- Animations ---- */
+    @keyframes popIn {
+      0%   { transform: translateY(8px) scale(0.96); opacity: 0; }
+      100% { transform: translateY(0) scale(1); opacity: 1; }
+    }
+    .pop { animation: popIn 0.28s cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+    @keyframes flipReveal {
+      0%   { transform: rotateX(90deg); opacity: 0; }
+      100% { transform: rotateX(0deg); opacity: 1; }
+    }
+    .cell.reveal { animation: flipReveal 0.4s ease both; }
+
+    /* ---- Custom scrollbar for the grid ---- */
+    .grid-scroll::-webkit-scrollbar { height: 10px; }
+    .grid-scroll::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 8px; }
+    .grid-scroll::-webkit-scrollbar-thumb { background: #c5cae9; border-radius: 8px; }
+    .grid-scroll::-webkit-scrollbar-thumb:hover { background: var(--tba-blue); }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col">
+
+  <!-- ======================= TOP NAV BAR (TBA style) ======================= -->
+  <header class="bg-[#3f51b5] text-white shadow-md">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-md bg-white flex items-center justify-center font-black text-[#3f51b5] text-lg shadow-sm">R</div>
+        <div class="leading-tight">
+          <h1 class="text-xl sm:text-2xl font-black tracking-tight">REBUILDLE</h1>
+          <p class="text-[11px] sm:text-xs text-indigo-100 -mt-0.5">REBUILT <span class="opacity-70">presented by Haas</span> · 2026</p>
+        </div>
+      </div>
+      <nav class="flex items-center gap-2 sm:gap-3 text-sm font-medium">
+        <button id="howToBtn" class="hidden sm:inline-block px-3 py-1.5 rounded hover:bg-white/15 transition">How to Play</button>
+        <button id="newGameBtn" class="px-3 py-1.5 rounded bg-white text-[#3f51b5] font-bold hover:bg-indigo-50 transition shadow-sm">New Game</button>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ======================= MAIN ======================= -->
+  <main class="flex-1 w-full max-w-6xl mx-auto px-3 sm:px-6 py-6 sm:py-8">
+
+    <!-- Intro / status card -->
+    <section class="bg-white border border-gray-200 rounded-xl shadow-sm p-5 sm:p-6 mb-5">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h2 class="text-lg sm:text-xl font-bold text-gray-800">Guess the mystery REBUILT robot</h2>
+          <p class="text-sm text-gray-500 mt-1">Type any team number. Each guess reveals how its robot compares to today's hidden team.</p>
+        </div>
+        <div class="flex items-center gap-2 text-sm">
+          <span id="modeBadge" class="px-3 py-1.5 rounded-full bg-indigo-100 text-[#303f9f] font-semibold">Mode: <span id="modeLabel">—</span></span>
+          <span class="px-3 py-1.5 rounded-full bg-indigo-50 text-[#3f51b5] font-semibold">Guesses: <span id="guessCount">0 / 8</span></span>
+          <span id="apiBadge" class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 font-medium">TBA: offline</span>
+        </div>
+      </div>
+
+      <!-- Search box with autocomplete -->
+      <div class="mt-5 relative max-w-md">
+        <div class="flex items-stretch gap-2">
+          <div class="relative flex-1">
+            <input
+              id="teamInput"
+              type="text"
+              autocomplete="off"
+              placeholder="Search team number or name…"
+              class="w-full px-4 py-3 rounded-lg border border-gray-300 focus:border-[#3f51b5] focus:ring-2 focus:ring-indigo-200 outline-none text-gray-800 text-sm transition"
+            />
+            <div id="dropdown" class="hidden absolute z-30 left-0 right-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden max-h-72 overflow-y-auto"></div>
+          </div>
+          <button id="guessBtn" class="px-5 py-3 rounded-lg bg-[#3f51b5] hover:bg-[#303f9f] text-white font-bold text-sm transition shadow-sm whitespace-nowrap">Guess</button>
+        </div>
+        <p id="inputMsg" class="text-xs text-red-500 mt-2 h-4"></p>
+      </div>
+    </section>
+
+    <!-- Victory banner (hidden until win) -->
+    <section id="winBanner" class="hidden bg-white border-2 border-[#22c55e] rounded-xl shadow-md p-5 sm:p-6 mb-5">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div id="winThumb" class="w-16 h-16 rounded-lg overflow-hidden bg-indigo-100 flex items-center justify-center font-black text-[#3f51b5] shrink-0"></div>
+        <div class="flex-1">
+          <h3 class="text-xl font-black text-[#16a34a]">Solved! 🎉</h3>
+          <p id="winText" class="text-sm text-gray-700 mt-0.5"></p>
+        </div>
+        <div class="flex gap-2">
+          <button id="copyBtn" class="px-4 py-2 rounded-lg bg-[#3f51b5] hover:bg-[#303f9f] text-white font-bold text-sm transition shadow-sm">Copy Results</button>
+          <button id="playAgainBtn" class="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-sm transition">Play Again</button>
+        </div>
+      </div>
+      <pre id="emojiGrid" class="mt-4 text-base leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-200 overflow-x-auto"></pre>
+    </section>
+
+    <!-- Defeat banner (hidden until loss) -->
+    <section id="loseBanner" class="hidden bg-white border-2 border-[#ef4444] rounded-xl shadow-md p-5 sm:p-6 mb-5">
+      <div class="flex flex-col sm:flex-row sm:items-center gap-4">
+        <div id="loseThumb" class="w-16 h-16 rounded-lg overflow-hidden bg-red-100 flex items-center justify-center font-black text-[#b91c1c] shrink-0"></div>
+        <div class="flex-1">
+          <h3 class="text-xl font-black text-[#dc2626]">Out of guesses 😵</h3>
+          <p id="loseText" class="text-sm text-gray-700 mt-0.5"></p>
+        </div>
+        <div class="flex gap-2">
+          <button id="copyBtnLose" class="px-4 py-2 rounded-lg bg-[#3f51b5] hover:bg-[#303f9f] text-white font-bold text-sm transition shadow-sm">Copy Results</button>
+          <button id="playAgainBtnLose" class="px-4 py-2 rounded-lg border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-sm transition">Play Again</button>
+        </div>
+      </div>
+      <pre id="emojiGridLose" class="mt-4 text-base leading-relaxed bg-gray-50 rounded-lg p-3 border border-gray-200 overflow-x-auto"></pre>
+    </section>
+
+    <!-- Guesses grid -->
+    <section class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 sm:p-5">
+      <div class="grid-scroll overflow-x-auto pb-2">
+        <!-- Column headers -->
+        <div class="grid-row mb-2 min-w-max">
+          <div class="head-cell">Team</div>
+          <div class="head-cell">Rookie&nbsp;Year</div>
+          <div class="head-cell">Clearance</div>
+          <div class="head-cell">Serialization</div>
+          <div class="head-cell">Shooter</div>
+          <div class="head-cell">Climb</div>
+          <div class="head-cell">Team&nbsp;Color</div>
+          <div class="head-cell">Intake</div>
+        </div>
+        <!-- Rows injected here -->
+        <div id="guessRows" class="space-y-2 min-w-max"></div>
+        <!-- Empty state -->
+        <div id="emptyState" class="text-center text-gray-400 text-sm py-10">No guesses yet — make your first guess above ⬆️</div>
+      </div>
+
+      <!-- Legend -->
+      <div class="mt-4 pt-4 border-t border-gray-100 flex flex-wrap gap-x-5 gap-y-2 text-xs text-gray-500">
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-[#22c55e] inline-block"></span> Match</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-[#ef4444] inline-block"></span> No match</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-[#f97316] inline-block"></span> Shooter: partial (Turret ↔ Double Turret)</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-[#eab308] inline-block"></span> Team Color: partial (shares a color)</span>
+        <span class="flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-[#9ca3af] inline-block"></span> Team Color: no shared color</span>
+        <span>🔼 target is higher / newer</span>
+        <span>🔽 target is lower / older</span>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="text-center text-xs text-gray-400 py-6 px-4">
+    Rebuildle is an unofficial fan project · Robot data &amp; photos via
+    <a href="https://www.thebluealliance.com" class="text-[#3f51b5] hover:underline">The Blue Alliance</a> API ·
+    FIRST, FRC &amp; REBUILT are trademarks of <em>FIRST</em>.
+  </footer>
+
+  <!-- ======================= MODE SELECT MODAL ======================= -->
+  <div id="modeModal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-md w-full p-6 relative">
+      <button id="modeClose" class="hidden absolute top-3 right-4 text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+
+      <!-- Step 1: Daily vs Free Play -->
+      <div id="modeStep1">
+        <h3 class="text-xl font-black text-[#3f51b5] mb-1">Choose your mode</h3>
+        <p class="text-sm text-gray-500 mb-5">How do you want to play Rebuildle?</p>
+        <div class="space-y-3">
+          <button data-mode="daily" class="mode-card">
+            <div class="mc-title">🗓️ Daily</div>
+            <div class="mc-sub">One puzzle a day — the same hidden team for everyone, drawn from the Top 200.</div>
+          </button>
+          <button data-mode="free" class="mode-card">
+            <div class="mc-title">♾️ Free Play</div>
+            <div class="mc-sub">Endless random rounds. Pick your difficulty next.</div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Step 2: Difficulty (Free Play only) -->
+      <div id="modeStep2" class="hidden">
+        <h3 class="text-xl font-black text-[#3f51b5] mb-1">Free Play difficulty</h3>
+        <p class="text-sm text-gray-500 mb-5">Which pool should the mystery team come from?</p>
+        <div class="space-y-3">
+          <button data-diff="top200" class="mode-card">
+            <div class="mc-title">⭐ Normal</div>
+            <div class="mc-sub">Top 200 teams only — the most iconic, recognizable robots.</div>
+          </button>
+          <button data-diff="all" class="mode-card">
+            <div class="mc-title">🔥 Hard mode</div>
+            <div class="mc-sub">Every team in the database — the full, deep field.</div>
+          </button>
+        </div>
+        <button id="modeBack" class="mt-4 text-sm text-[#3f51b5] hover:underline font-medium">← Back</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= HOW TO PLAY MODAL ======================= -->
+  <div id="howToModal" class="hidden fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6 relative">
+      <button id="howToClose" class="absolute top-3 right-4 text-gray-400 hover:text-gray-700 text-2xl leading-none">&times;</button>
+      <h3 class="text-xl font-black text-[#3f51b5] mb-3">How to Play</h3>
+      <ul class="space-y-2 text-sm text-gray-700 list-disc list-inside">
+        <li>Pick a mode: <strong>Daily</strong> (one shared puzzle a day from the Top 200) or <strong>Free Play</strong> — where <strong>Normal</strong> uses the Top 200 and <strong>Hard mode</strong> opens up every team.</li>
+        <li>Guess any team number — its REBUILT robot attributes are compared to the target.</li>
+        <li><span class="font-semibold text-[#22c55e]">Green</span> = exact match. <span class="font-semibold text-[#ef4444]">Red</span> = no match.</li>
+        <li>On <strong>Team #</strong> and <strong>Rookie Year</strong>, an arrow shows whether the target's value is 🔼 higher / 🔽 lower than your guess.</li>
+        <li>You have <strong>8 guesses</strong> — turn the whole row green before you run out, or it's a loss.</li>
+      </ul>
+      <h4 class="font-bold text-gray-800 mt-4 mb-1 text-sm">The attribute columns</h4>
+      <div class="text-xs text-gray-600 space-y-1">
+        <p><strong>Clearance:</strong> Trench · Bump</p>
+        <p><strong>Serialization:</strong> Rollerfloor · Dyerotor · Spindexer</p>
+        <p><strong>Shooter:</strong> Turret · Double Turret · Dumper <span class="text-gray-400">(single vs double turret = orange partial)</span></p>
+        <p><strong>Climb:</strong> Climb · No Climb</p>
+        <p><strong>Team Color:</strong> Red · Blue · Yellow · Green · Purple · Orange · Pink · Tan · White · Black · No major color <span class="text-gray-400">(1–2 per robot — green = same set, yellow = shares one, gray = none)</span></p>
+        <p><strong>Intake:</strong> Over Bumper Intake · Cut Bumper Intake</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ======================= GAME LOGIC ======================= -->
+  <script>
+  /* =====================================================================
+     CONFIGURATION
+     Paste your free TBA (The Blue Alliance) read API key below to pull
+     live team names, rookie years and robot photos. Get one at:
+     https://www.thebluealliance.com/account
+     The game is fully playable without a key (it falls back to the local
+     dataset and placeholder graphics).
+  ===================================================================== */
+  const TBA_AUTH_KEY = "UHiquxFODh5FDhFCtbeuzsWFqJNKCQtiEXTpx2HkGUnRm8qUWEmj4x8eH4URDW3q";
+  const TBA_BASE = "https://www.thebluealliance.com/api/v3";
+
+  /* =====================================================================
+     CORE DATASET — rebuildle_data.json (exported by the Data Logger)
+     RAW_DATA is the export verbatim; the normalization layer below maps it
+     to the game's internal shape:
+        top200 "Yes"/"No"   -> boolean "recognizable/well-known team" flag
+                               (HoF + champions + high-content; powers Normal/Daily pools)
+        bumper              -> intake  (title-cased for display)
+        color (str | array) -> string[]  (set-compared, order-independent)
+                               palette: Red Blue Yellow Green Purple Orange Pink Tan White Black, or ["No major color"]
+     Team name / rookie year / robot photo are pulled live from TBA.
+     To update the game, paste a fresh export over RAW_DATA below.
+  ===================================================================== */
+  const RAW_DATA = {
+    "16": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Black"], "bumper":"Over Bumper intake" },
+    "27": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Yellow"], "bumper":"Over Bumper intake" },
+    "33": { "top200":"Yes", "clearance":"Bump", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Yellow","Black"], "bumper":"Over Bumper intake" },
+    "67": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"Climb", "color":["Red","Black"], "bumper":"Over Bumper intake" },
+    "111": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"Climb", "color":["No major color"], "bumper":"Over Bumper intake" },
+    "118": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Double Turret", "climb":"Climb", "color":["Yellow","White"], "bumper":"Over Bumper intake" },
+    "125": { "top200":"Yes", "clearance":"Bump", "indexer":"Dyerotor", "shooter":"Turret", "climb":"No Climb", "color":["Red"], "bumper":"Over Bumper intake" },
+    "148": { "top200":"Yes", "clearance":"Trench", "indexer":"Dyerotor", "shooter":"Turret", "climb":"No Climb", "color":["Black"], "bumper":"Over Bumper intake" },
+    "190": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"No Climb", "color":["Red","Black"], "bumper":"Over Bumper intake" },
+    "195": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Black","White"], "bumper":"Over Bumper intake" },
+    "233": { "top200":"Yes", "clearance":"Bump", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"No Climb", "color":["Pink"], "bumper":"Over Bumper intake" },
+    "254": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"Climb", "color":["Blue"], "bumper":"Over Bumper intake" },
+    "341": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"No Climb", "color":["Blue","Yellow"], "bumper":"Over Bumper intake" },
+    "359": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"No Climb", "color":["Blue"], "bumper":"Over Bumper intake" },
+    "498": { "top200":"Yes", "clearance":"Bump", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Blue"], "bumper":"Over Bumper intake" },
+    "581": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Red","Yellow"], "bumper":"Over Bumper intake" },
+    "604": { "top200":"Yes", "clearance":"Bump", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"No Climb", "color":["Yellow"], "bumper":"Over Bumper intake" },
+    "971": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Double Turret", "climb":"Climb", "color":["Yellow","Black"], "bumper":"Over Bumper intake" },
+    "987": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Double Turret", "climb":"Climb", "color":["White","Black"], "bumper":"Over Bumper intake" },
+    "1114": { "top200":"Yes", "clearance":"Bump", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Red"], "bumper":"Over Bumper intake" },
+    "1323": { "top200":"Yes", "clearance":"Trench", "indexer":"Dyerotor", "shooter":"Turret", "climb":"No Climb", "color":["Blue"], "bumper":"Over Bumper intake" },
+    "1325": { "top200":"Yes", "clearance":"Trench", "indexer":"Spindexer", "shooter":"Turret", "climb":"No Climb", "color":["Blue"], "bumper":"Over Bumper intake" },
+    "1538": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"Climb", "color":["Black","White"], "bumper":"Over Bumper intake" },
+    "1678": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Green"], "bumper":"Over Bumper intake" },
+    "1690": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"Climb", "color":["Blue"], "bumper":"Over Bumper intake" },
+    "1706": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"No Climb", "color":["Blue"], "bumper":"Over Bumper intake" },
+    "1768": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Green"], "bumper":"Over Bumper intake" },
+    "1796": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"No Climb", "color":["No major color"], "bumper":"Over Bumper intake" },
+    "1833": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Blue"], "bumper":"Over Bumper intake" },
+    "1987": { "top200":"Yes", "clearance":"Trench", "indexer":"Dyerotor", "shooter":"Turret", "climb":"No Climb", "color":["No major color"], "bumper":"Over Bumper intake" },
+    "2046": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Yellow","Black"], "bumper":"Over Bumper intake" },
+    "2056": { "top200":"Yes", "clearance":"Trench", "indexer":"Dyerotor", "shooter":"Turret", "climb":"No Climb", "color":["Blue","Red"], "bumper":"Over Bumper intake" },
+    "2231": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"No Climb", "color":["No major color"], "bumper":"Over Bumper intake" },
+    "2481": { "top200":"Yes", "clearance":"Bump", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["No major color"], "bumper":"Over Bumper intake" },
+    "2910": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Green"], "bumper":"Over Bumper intake" },
+    "3467": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Black"], "bumper":"Over Bumper intake" },
+    "3847": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Purple"], "bumper":"Over Bumper intake" },
+    "4414": { "top200":"Yes", "clearance":"Trench", "indexer":"Dyerotor", "shooter":"Turret", "climb":"No Climb", "color":["Blue"], "bumper":"Over Bumper intake" },
+    "4481": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"No Climb", "color":["Orange"], "bumper":"Over Bumper intake" },
+    "4522": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Yellow"], "bumper":"Over Bumper intake" },
+    "4613": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Red","White"], "bumper":"Over Bumper intake" },
+    "5000": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Turret", "climb":"No Climb", "color":["Black"], "bumper":"Over Bumper intake" },
+    "5460": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Green"], "bumper":"Over Bumper intake" },
+    "5687": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Red"], "bumper":"Over Bumper intake" },
+    "5940": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Double Turret", "climb":"No Climb", "color":["Tan"], "bumper":"Over Bumper intake" },
+    "5985": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Double Turret", "climb":"No Climb", "color":["Red"], "bumper":"Over Bumper intake" },
+    "6328": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Blue","Yellow"], "bumper":"Over Bumper intake" },
+    "6329": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Purple"], "bumper":"Over Bumper intake" },
+    "6369": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Red"], "bumper":"Over Bumper intake" },
+    "6800": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Yellow","Black"], "bumper":"Over Bumper intake" },
+    "7558": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["No major color"], "bumper":"Over Bumper intake" },
+    "7769": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["No major color"], "bumper":"Over Bumper intake" },
+    "8044": { "top200":"Yes", "clearance":"Trench", "indexer":"Dyerotor", "shooter":"Turret", "climb":"No Climb", "color":["Purple","Yellow"], "bumper":"Over Bumper intake" },
+    "9128": { "top200":"Yes", "clearance":"Bump", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["No major color"], "bumper":"Over Bumper intake" },
+    "9470": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["No major color"], "bumper":"Over Bumper intake" },
+    "9483": { "top200":"Yes", "clearance":"Bump", "indexer":"Dyerotor", "shooter":"Turret", "climb":"No Climb", "color":["Black"], "bumper":"Over Bumper intake" },
+    "9496": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["Yellow"], "bumper":"Over Bumper intake" },
+    "9785": { "top200":"Yes", "clearance":"Trench", "indexer":"Rollerfloor", "shooter":"Dumper", "climb":"No Climb", "color":["No major color"], "bumper":"Over Bumper intake" }
+  };
+
+  // Normalize a color value (array | string | missing) to a clean array.
+  const asColorArray = v => Array.isArray(v) ? v.filter(Boolean) : (v ? [v] : []);
+
+  // The logger cases intake as "Over Bumper intake"; title-case for display.
+  const INTAKE_FIX = { "over bumper intake": "Over Bumper Intake", "cut bumper intake": "Cut Bumper Intake" };
+  const normIntake = v => (v ? (INTAKE_FIX[String(v).toLowerCase()] || v) : v);
+
+  // Build the internal teamData from the raw export.
+  const teamData = {};
+  for (const [num, r] of Object.entries(RAW_DATA)) {
+    teamData[num] = {
+      top200:    r.top200 === "Yes",
+      clearance: r.clearance,
+      indexer:   r.indexer,
+      shooter:   r.shooter,
+      climb:     r.climb,
+      color:     asColorArray(r.color),
+      intake:    normIntake(r.bumper)
+    };
+  }
+
+  /* ---------------------------------------------------------------------
+     TEAM COLOR (categorical attribute from the Rebuildle Data Logger)
+     `color` is an ARRAY of 1–2 values (a robot can have up to two colors),
+     or the single sentinel ["No major color"]. Order is irrelevant — it's
+     compared as a SET. A team may have no logged color — handled gracefully.
+  --------------------------------------------------------------------- */
+  const COLOR_HEX = {
+    Red:    "#ef4444",
+    Blue:   "#2563eb",
+    Yellow: "#eab308",
+    Green:  "#22c55e",
+    Purple: "#a855f7",
+    Orange: "#f97316",
+    Pink:   "#ec4899",
+    Tan:    "#d2b48c",
+    White:  "#ffffff",
+    Black:  "#111827"
+    // "No major color" intentionally has no swatch (rendered as plain text).
+  };
+
+  // (Team colors now come from RAW_DATA above.)
+
+  // Set comparison of two color arrays (case-insensitive, order-independent).
+  //   "full"    -> identical sets
+  //   "partial" -> some overlap but not identical
+  //   "none"    -> no overlap (or either side empty/unknown)
+  function colorSetResult(guess, target) {
+    const g = asColorArray(guess).map(s => String(s).toLowerCase());
+    const t = asColorArray(target).map(s => String(s).toLowerCase());
+    if (!g.length || !t.length) return "none";
+    const gs = new Set(g), ts = new Set(t);
+    const identical = gs.size === ts.size && [...gs].every(x => ts.has(x));
+    if (identical) return "full";
+    return [...gs].some(x => ts.has(x)) ? "partial" : "none";
+  }
+
+  // Shooter comparison — single vs double turret are "close":
+  //   "full"    -> exact same value
+  //   "partial" -> Turret vs Double Turret (both turret-type)
+  //   "none"    -> any turret vs Dumper, or missing
+  const TURRETS = new Set(["Turret", "Double Turret"]);
+  function shooterResult(guess, target) {
+    if (guess == null || target == null) return "none";
+    if (guess === target) return "full";
+    return (TURRETS.has(guess) && TURRETS.has(target)) ? "partial" : "none";
+  }
+
+  // Active guess pool — rebuilt whenever a game starts (see startGame()).
+  let POOL = new Set();        // Set of team-number strings valid this round
+  let activeTeams = [];        // [{ number, name }] for the autocomplete
+
+  /* ---------------------------------------------------------------------
+     GAMEPLAY CONSTANTS
+  --------------------------------------------------------------------- */
+  const MAX_GUESSES = 8;       // loss cap — applies to BOTH Daily and Free Play
+  const DAILY_POOL_SIZE = 365; // one distinct robot per day of the year
+
+  /* Leap-day easter egg.
+     The 366th day-of-year (only exists in leap years) resolves to FRC team
+     47 — which is really named "Chief Delphi". Its attributes are all "idk",
+     so every attribute cell stays red and you win it purely off the
+     number/year arrows. Name / rookie year / photo still come live from TBA. */
+  const LEAP_EGG_NUM = "47";
+  const LEAP_EGG = {
+    name: "Chief Delphi", rookieYear: 1996,
+    clearance: "idk", indexer: "idk", shooter: "idk", climb: "idk", color: ["idk"], intake: "idk",
+    top200: false
+  };
+  const SPECIAL = { [LEAP_EGG_NUM]: LEAP_EGG };
+
+  // Record lookup that also knows about special/easter-egg teams.
+  const teamRec = k => teamData[k] || SPECIAL[k] || null;
+
+  /* =====================================================================
+     TBA API HELPERS
+  ===================================================================== */
+  const apiEnabled = !!TBA_AUTH_KEY && !TBA_AUTH_KEY.includes("YOUR_TBA");
+  const metaCache = new Map(); // teamNumber -> resolved meta
+  const nameCache = new Map(); // teamNumber -> nickname (for the autocomplete)
+
+  async function tbaGet(path) {
+    if (!apiEnabled) throw new Error("TBA key not configured");
+    const res = await fetch(TBA_BASE + path, {
+      headers: { "X-TBA-Auth-Key": TBA_AUTH_KEY, "accept": "application/json" }
+    });
+    if (!res.ok) throw new Error("TBA HTTP " + res.status);
+    return res.json();
+  }
+
+  // Find a usable robot photo across recent seasons.
+  async function fetchRobotPhoto(num) {
+    const imageTypes = new Set(["imgur", "cdphotothread", "instagram-image"]);
+    for (const year of [2026, 2025, 2024, 2023, 2022]) {
+      try {
+        const media = await tbaGet(`/team/frc${num}/media/${year}`);
+        if (!Array.isArray(media)) continue;
+        const photos = media.filter(m =>
+          m && typeof m.direct_url === "string" && m.direct_url &&
+          (imageTypes.has(m.type) || /\.(jpe?g|png|gif|webp)$/i.test(m.direct_url))
+        );
+        photos.sort((a, b) => (b.preferred ? 1 : 0) - (a.preferred ? 1 : 0));
+        if (photos.length) return photos[0].direct_url;
+      } catch (e) { /* try next season */ }
+    }
+    return null;
+  }
+
+  // Resolve full metadata for a team: local attributes + live TBA enrichment.
+  async function getTeamMeta(num) {
+    const key = String(num);
+    if (metaCache.has(key)) return metaCache.get(key);
+
+    const local = teamRec(key);
+    const meta = {
+      number: parseInt(key, 10),
+      // Data export has no names; use any prefetched nickname, else a placeholder.
+      name: (local && local.name) || nameCache.get(key) || `Team ${key}`,
+      rookieYear: (local && local.rookieYear) || null,
+      photoUrl: null,
+      attrs: local || null
+    };
+
+    if (apiEnabled) {
+      try {
+        const info = await tbaGet(`/team/frc${num}`);
+        if (info) {
+          if (info.nickname) { meta.name = info.nickname; nameCache.set(key, info.nickname); }
+          if (typeof info.rookie_year === "number") meta.rookieYear = info.rookie_year;
+        }
+      } catch (e) { /* keep local fallbacks */ }
+      try {
+        meta.photoUrl = await fetchRobotPhoto(num);
+      } catch (e) { /* placeholder */ }
+    }
+
+    metaCache.set(key, meta);
+    return meta;
+  }
+
+  // Pre-fetch nicknames for the round's pool so the autocomplete is searchable
+  // by name (the export has numbers only). Runs in the background, then refreshes
+  // the labels and any open dropdown. Uses the cheap /simple endpoint.
+  async function prefetchNames(keys) {
+    if (!apiEnabled) return;
+    await Promise.all(keys.map(async k => {
+      if (k === LEAP_EGG_NUM || nameCache.has(k)) return;
+      try {
+        const info = await tbaGet(`/team/frc${k}/simple`);
+        if (info && info.nickname) {
+          nameCache.set(k, info.nickname);
+          if (teamData[k]) teamData[k].name = info.nickname;
+        }
+      } catch (e) { /* keep number-only label */ }
+    }));
+    activeTeams.forEach(t => {
+      const n = nameCache.get(String(t.number));
+      if (n) t.name = n;
+    });
+    if ($("teamInput").value.trim()) renderSuggestions($("teamInput").value);
+  }
+
+  /* =====================================================================
+     GAME STATE
+  ===================================================================== */
+  const ATTRS = [
+    { key: "clearance", label: "Clearance" },
+    { key: "indexer",   label: "Serialization" },
+    { key: "shooter",   label: "Shooter", type: "shooter" }, // green / orange (turret split) / red
+    { key: "climb",     label: "Climb" },
+    { key: "color",     label: "Team Color", type: "color" }, // categorical: green match / gray miss
+    { key: "intake",    label: "Intake" }
+  ];
+
+  const state = {
+    mode: "daily",       // "daily" | "free"
+    difficulty: "top200",// "top200" (Normal) | "all" (Hard)  — used in free play
+    dayNo: null,         // daily puzzle number
+    target: null,        // team number (string)
+    targetMeta: null,    // resolved meta of target
+    guessed: new Set(),  // numbers already guessed
+    rows: [],            // { num, emoji: [..7..] }
+    won: false,
+    lost: false,
+    suggestions: [],
+    highlight: -1,
+    busy: false
+  };
+
+  const $ = id => document.getElementById(id);
+
+  /* =====================================================================
+     RENDERING
+  ===================================================================== */
+  function placeholderThumb(num, photoUrl) {
+    const img = photoUrl
+      ? `<img src="${photoUrl}" alt="Team ${num} robot" onerror="this.remove()" />`
+      : "";
+    return `<div class="thumb"><div class="placeholder">${num}</div>${img}</div>`;
+  }
+
+  function teamCell(meta, isTarget) {
+    const bg = isTarget ? "var(--correct)" : "var(--wrong)";
+    let arrow = "";
+    if (!isTarget) {
+      arrow = state.targetMeta.number > meta.number ? " 🔼" : " 🔽";
+    }
+    const shortName = meta.name.length > 22 ? meta.name.slice(0, 21) + "…" : meta.name;
+    return `
+      <div class="cell reveal" style="background:${bg};animation-delay:0s">
+        ${placeholderThumb(meta.number, meta.photoUrl)}
+        <div class="font-black text-[15px]">${meta.number}${arrow}</div>
+        <div class="text-[10px] font-medium opacity-95 leading-tight">${shortName}</div>
+      </div>`;
+  }
+
+  function rookieCell(meta) {
+    const guessYear = meta.rookieYear;
+    const targetYear = state.targetMeta.rookieYear;
+    const known = guessYear != null && targetYear != null;
+    const isMatch = known && guessYear === targetYear;
+    const bg = isMatch ? "var(--correct)" : "var(--wrong)";
+    let arrow = "";
+    if (known && !isMatch) {
+      arrow = targetYear > guessYear ? " 🔼" : " 🔽";
+    }
+    const display = guessYear != null ? guessYear : "?";
+    return `<div class="cell reveal" style="background:${bg};animation-delay:0.06s"><div class="text-base">${display}${arrow}</div></div>`;
+  }
+
+  // kind: "match" -> green, "partial" -> orange, "miss" -> red, "unknown" -> gray.
+  function attrCell(value, kind, delay) {
+    const bg = kind === "match" ? "var(--correct)"
+             : kind === "partial" ? "#f97316"
+             : kind === "unknown" ? "#9ca3af"
+             : "var(--wrong)";
+    return `<div class="cell reveal" style="background:${bg};animation-delay:${delay}s">${value || "—"}</div>`;
+  }
+
+  // Team Color cell. `result` is "full" | "partial" | "none" from colorSetResult.
+  //   full -> green, partial -> yellow, none -> gray. Renders up to two swatches
+  //   and never crashes on a missing/unknown color (shows a neutral "—").
+  function colorCell(value, result, delay) {
+    const arr = asColorArray(value);
+    const bg = result === "full" ? "var(--correct)"
+             : result === "partial" ? "#eab308"
+             : "#9ca3af";
+    if (!arr.length) {
+      return `<div class="cell reveal" style="background:#9ca3af;animation-delay:${delay}s"><span class="text-base opacity-90">—</span></div>`;
+    }
+    const swatches = arr.map(c => {
+      const hex = COLOR_HEX[c];
+      return hex ? `<span class="swatch" style="background:${hex}"></span>` : "";
+    }).join("");
+    const swatchRow = swatches ? `<div class="flex gap-1 justify-center">${swatches}</div>` : "";
+    return `<div class="cell reveal" style="background:${bg};animation-delay:${delay}s">${swatchRow}<div class="text-[10px] mt-1 leading-tight">${arr.join(" / ")}</div></div>`;
+  }
+
+  function renderRow(meta) {
+    const targetNum = state.targetMeta.number;
+    const isTarget = meta.number === targetNum;
+    const tAttrs = state.targetMeta.attrs || {};
+    const gAttrs = meta.attrs || {};
+
+    const emoji = [];
+    emoji.push(isTarget ? "🟩" : "🟥"); // team
+    emoji.push((meta.rookieYear != null && state.targetMeta.rookieYear === meta.rookieYear) ? "🟩" : "🟥"); // rookie
+
+    let cells = teamCell(meta, isTarget) + rookieCell(meta);
+
+    ATTRS.forEach((a, i) => {
+      const gVal = gAttrs[a.key];
+      const tVal = tAttrs[a.key];
+      const match = gVal != null && tVal != null && gVal === tVal;
+      const delay = 0.12 + i * 0.06;
+      if (a.type === "color") {
+        const res = colorSetResult(gVal, tVal);    // "full" | "partial" | "none"
+        emoji.push(res === "full" ? "🟩" : res === "partial" ? "🟨" : "⬜");
+        cells += colorCell(gVal, res, delay);
+      } else if (a.type === "shooter") {
+        if (gVal == null) {
+          emoji.push("⬜");
+          cells += attrCell(null, "unknown", delay);
+        } else {
+          const res = shooterResult(gVal, tVal);   // "full" | "partial" | "none"
+          emoji.push(res === "full" ? "🟩" : res === "partial" ? "🟧" : "🟥");
+          cells += attrCell(gVal, res === "full" ? "match" : res === "partial" ? "partial" : "miss", delay);
+        }
+      } else if (gVal == null) {
+        // Field wasn't logged for this team — neutral/unknown, never a crash.
+        emoji.push("⬜");
+        cells += attrCell(null, "unknown", delay);
+      } else {
+        emoji.push(match ? "🟩" : "🟥");
+        cells += attrCell(gVal, match ? "match" : "miss", delay);
+      }
+    });
+
+    const wrapper = document.createElement("div");
+    wrapper.className = "grid-row pop";
+    wrapper.innerHTML = cells;
+    $("guessRows").prepend(wrapper);
+
+    state.rows.unshift({ num: meta.number, emoji });
+  }
+
+  /* =====================================================================
+     GAME ACTIONS
+  ===================================================================== */
+  async function makeGuess(rawNum) {
+    if (state.won || state.lost || state.busy) return;
+    const msg = $("inputMsg");
+    msg.textContent = "";
+    if (!state.targetMeta) { msg.textContent = "Loading today's robot… one sec."; return; }
+    const num = String(parseInt(rawNum, 10));
+
+    if (!num || num === "NaN") { msg.textContent = "Enter a valid team number."; return; }
+    if (!teamRec(num)) { msg.textContent = `Team ${num} isn't in the Rebuildle database.`; return; }
+    if (!POOL.has(num)) {
+      msg.textContent = `Team ${num} is a Hard-mode team — not in this round's pool.`;
+      return;
+    }
+    if (state.guessed.has(num)) { msg.textContent = `You already guessed ${num}.`; return; }
+
+    state.busy = true;
+    setBusy(true);
+
+    state.guessed.add(num);
+    $("emptyState").style.display = "none";
+
+    const meta = await getTeamMeta(num);
+    renderRow(meta);
+    updateGuessBadge();
+
+    if (meta.number === state.targetMeta.number) {
+      state.won = true;
+      showWin();
+      if (state.mode === "daily") saveDailyRecord("won");
+    } else if (state.guessed.size >= MAX_GUESSES) {
+      state.lost = true;
+      showLose();
+      if (state.mode === "daily") saveDailyRecord("lost");
+    }
+
+    state.busy = false;
+    setBusy(false);
+    clearInput();
+  }
+
+  function updateGuessBadge() {
+    $("guessCount").textContent = `${state.guessed.size} / ${MAX_GUESSES}`;
+  }
+
+  function setBusy(on) {
+    const btn = $("guessBtn");
+    btn.disabled = on;
+    btn.textContent = on ? "…" : "Guess";
+    btn.classList.toggle("opacity-60", on);
+  }
+
+  function clearInput() {
+    $("teamInput").value = "";
+    hideDropdown();
+    if (!state.won && !state.lost) $("teamInput").focus();
+  }
+
+  function showWin() {
+    const m = state.targetMeta;
+    $("winBanner").classList.remove("hidden");
+    $("winThumb").innerHTML = m.photoUrl
+      ? `<img src="${m.photoUrl}" class="w-full h-full object-cover" onerror="this.remove()" />`
+      : m.number;
+    $("winText").innerHTML =
+      `Team <strong>${m.number} — ${m.name}</strong> in ` +
+      `<strong>${state.guessed.size}/${MAX_GUESSES}</strong> ` +
+      `guess${state.guessed.size === 1 ? "" : "es"}.`;
+
+    // Emoji grid is stored newest-first; reverse for chronological share.
+    $("emojiGrid").textContent = state.rows.slice().reverse().map(r => r.emoji.join("")).join("\n");
+
+    $("teamInput").disabled = true;
+    $("guessBtn").disabled = true;
+    $("winBanner").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  function showLose() {
+    const m = state.targetMeta;
+    $("loseBanner").classList.remove("hidden");
+    $("loseThumb").innerHTML = m.photoUrl
+      ? `<img src="${m.photoUrl}" class="w-full h-full object-cover" onerror="this.remove()" />`
+      : m.number;
+    $("loseText").innerHTML =
+      `Out of guesses! The answer was Team <strong>${m.number} — ${m.name}</strong>.`;
+
+    $("emojiGridLose").textContent = state.rows.slice().reverse().map(r => r.emoji.join("")).join("\n");
+
+    $("teamInput").disabled = true;
+    $("guessBtn").disabled = true;
+    $("loseBanner").scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+
+  // Human-readable label (for the badge) + share prefix for the current mode.
+  function modeDescriptor() {
+    if (state.mode === "daily") {
+      const dateStr = new Date().toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+      return { label: `Daily #${state.dayNo}`, share: `Rebuildle Daily #${state.dayNo} — ${dateStr}` };
+    }
+    const diff = state.difficulty === "all" ? "Hard" : "Normal";
+    return { label: `Free Play · ${diff}`, share: `Rebuildle Free Play (${diff})` };
+  }
+
+  function buildShareText() {
+    const grid = state.rows.slice().reverse().map(r => r.emoji.join("")).join("\n");
+    const head = `${modeDescriptor().share} 🤖`;
+    const line = state.lost
+      ? `X/${MAX_GUESSES} — couldn't crack team #${state.targetMeta.number} 😵`
+      : `Solved team #${state.targetMeta.number} in ${state.guessed.size}/${MAX_GUESSES} ` +
+        `guess${state.guessed.size === 1 ? "" : "es"}!`;
+    return `${head}\n${line}\n\n${grid}`;
+  }
+
+  async function copyResults(btn) {
+    const text = buildShareText();
+    try {
+      await navigator.clipboard.writeText(text);
+      flashCopy(btn, "Copied! ✅");
+    } catch (e) {
+      // Fallback for non-secure contexts
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); flashCopy(btn, "Copied! ✅"); }
+      catch (_) { flashCopy(btn, "Copy failed"); }
+      ta.remove();
+    }
+  }
+
+  function flashCopy(btn, label) {
+    const original = "Copy Results";
+    btn.textContent = label;
+    setTimeout(() => { btn.textContent = original; }, 1600);
+  }
+
+  /* =====================================================================
+     MODE / POOL HELPERS
+  ===================================================================== */
+  // Free Play pool of team-number strings for a given difficulty.
+  //   Normal -> Top 200 teams only.  Hard -> every team in the database.
+  function getPoolKeys(difficulty) {
+    const all = Object.keys(teamData);
+    if (difficulty === "all") return all;
+    return all.filter(k => teamData[k].top200);
+  }
+
+  // Ordered daily pool: all Top 200 first, then the rest, capped at 365 —
+  // so there's a distinct robot for every (non-leap) day of the year.
+  function buildDailyPool() {
+    const all = Object.keys(teamData);
+    const tops = all.filter(k => teamData[k].top200).sort((a, b) => (+a) - (+b));
+    const hard = all.filter(k => !teamData[k].top200).sort((a, b) => (+a) - (+b));
+    return tops.concat(hard).slice(0, DAILY_POOL_SIZE);
+  }
+
+  // Continuous puzzle number for display (days since 2026-01-01, 1-indexed).
+  function dailyNumber() {
+    const epoch = Date.UTC(2026, 0, 1);
+    const t = new Date();
+    const today = Date.UTC(t.getFullYear(), t.getMonth(), t.getDate());
+    return Math.floor((today - epoch) / 86400000) + 1;
+  }
+
+  // Day of the year, 1..365 (or 1..366 in a leap year — the 366th is the egg).
+  function dayOfYear(d) {
+    const start = Date.UTC(d.getFullYear(), 0, 1);
+    const today = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
+    return Math.floor((today - start) / 86400000) + 1;
+  }
+
+  // Small deterministic PRNG (mulberry32) for a reproducible yearly shuffle.
+  function mulberry32(seed) {
+    return function () {
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Seeded Fisher–Yates — same seed (the year) always yields the same order.
+  function seededShuffle(arr, seed) {
+    const a = arr.slice();
+    const rand = mulberry32(seed);
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // Clear the board + UI without choosing a new target.
+  function resetBoard() {
+    state.target = null;
+    state.targetMeta = null;
+    state.guessed = new Set();
+    state.rows = [];
+    state.won = false;
+    state.lost = false;
+    state.suggestions = [];
+    state.highlight = -1;
+
+    $("guessRows").innerHTML = "";
+    $("emptyState").style.display = "";
+    $("winBanner").classList.add("hidden");
+    $("loseBanner").classList.add("hidden");
+    $("teamInput").disabled = false;
+    $("guessBtn").disabled = false;
+    $("inputMsg").textContent = "";
+    updateGuessBadge();
+    clearInput();
+  }
+
+  // Start a fresh game in the chosen mode/difficulty.
+  async function startGame(mode, difficulty) {
+    state.mode = mode;
+    state.difficulty = mode === "daily" ? "top200" : difficulty;
+
+    let keys;            // guessable pool for this round
+    let targetKey;       // hidden answer
+    let isEggDay = false;
+
+    if (mode === "daily") {
+      const now = new Date();
+      state.dayNo = dailyNumber();
+      const doy = dayOfYear(now);
+      const dailyKeys = buildDailyPool();
+
+      if (doy >= 366) {
+        // 366th day (leap years only) → Chief Delphi easter egg (team 47).
+        isEggDay = true;
+        targetKey = LEAP_EGG_NUM;
+        keys = Array.from(new Set(dailyKeys.concat(LEAP_EGG_NUM)));
+      } else {
+        // Year-seeded Fisher–Yates → distinct, repeat-free answer each day,
+        // identical for everyone on a date, reshuffled fresh every new year.
+        const order = seededShuffle(dailyKeys, now.getFullYear());
+        targetKey = order[(doy - 1) % order.length];
+        keys = dailyKeys;
+      }
+    } else {
+      keys = getPoolKeys(state.difficulty);
+      targetKey = keys[Math.floor(Math.random() * keys.length)];
+    }
+
+    // Build the active pool + autocomplete list (names filled in by prefetch).
+    POOL = new Set(keys);
+    activeTeams = keys
+      .map(k => {
+        const rec = teamRec(k);
+        return { number: parseInt(k, 10), name: (rec && rec.name) || nameCache.get(k) || `Team ${k}` };
+      })
+      .sort((a, b) => a.number - b.number);
+    prefetchNames(keys);                // background: enable name search in the dropdown
+
+    resetBoard();                       // clears board (nulls target) — assign after
+    $("modeLabel").textContent = modeDescriptor().label;
+
+    // Resolve the hidden target (TBA name/year/photo + local/egg attributes).
+    state.target = targetKey;
+    state.targetMeta = await getTeamMeta(targetKey);
+    if (isEggDay) {
+      // Force the joke attributes even if 47 ever becomes a real data entry.
+      state.targetMeta = {
+        ...state.targetMeta,
+        attrs: { clearance: "idk", indexer: "idk", shooter: "idk", climb: "idk", color: ["idk"], intake: "idk" }
+      };
+    }
+
+    // Daily: if today was already finished, restore the locked board + banner.
+    if (mode === "daily") {
+      const rec = loadDailyRecord();
+      if (rec) { await replayDaily(rec); return; }
+    }
+
+    input.focus();
+  }
+
+  /* =====================================================================
+     DAILY PERSISTENCE (localStorage)
+     One shared puzzle per day; once solved or lost it stays locked so a
+     reload restores the finished board instead of letting you replay.
+  ===================================================================== */
+  function dailyStorageKey() { return `rebuildle-daily-${state.dayNo}`; }
+
+  function saveDailyRecord(result) {
+    try {
+      const order = state.rows.slice().reverse().map(r => r.num); // chronological
+      localStorage.setItem(dailyStorageKey(), JSON.stringify({
+        result, target: state.target, guesses: order
+      }));
+    } catch (e) { /* storage unavailable — non-fatal */ }
+  }
+
+  function loadDailyRecord() {
+    try {
+      const raw = localStorage.getItem(dailyStorageKey());
+      if (!raw) return null;
+      const rec = JSON.parse(raw);
+      if (rec && rec.target === state.target && Array.isArray(rec.guesses)) return rec;
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  // Re-draw a previously finished daily and show its end banner.
+  async function replayDaily(rec) {
+    $("emptyState").style.display = "none";
+    for (const num of rec.guesses) {
+      const key = String(num);
+      if (state.guessed.has(key)) continue;
+      state.guessed.add(key);
+      renderRow(await getTeamMeta(key));
+    }
+    updateGuessBadge();
+    if (rec.result === "won") { state.won = true; showWin(); }
+    else { state.lost = true; showLose(); }
+  }
+
+  /* =====================================================================
+     MODE-SELECT MODAL
+  ===================================================================== */
+  function openModeSelect() {
+    // Allow dismissing only if a game is already in progress.
+    $("modeClose").classList.toggle("hidden", !state.target);
+    $("modeStep1").classList.remove("hidden");
+    $("modeStep2").classList.add("hidden");
+    $("modeModal").classList.remove("hidden");
+  }
+
+  function closeModeSelect() {
+    if (state.target) $("modeModal").classList.add("hidden");
+  }
+
+  /* =====================================================================
+     AUTOCOMPLETE DROPDOWN
+  ===================================================================== */
+  function renderSuggestions(q) {
+    q = q.trim().toLowerCase();
+    const dd = $("dropdown");
+    if (!q) { hideDropdown(); return; }
+
+    const matches = activeTeams.filter(t =>
+      !state.guessed.has(String(t.number)) &&
+      (String(t.number).startsWith(q) || t.name.toLowerCase().includes(q))
+    ).slice(0, 8);
+
+    if (!matches.length) { hideDropdown(); return; }
+
+    state.suggestions = matches;
+    state.highlight = 0;
+    dd.innerHTML = matches.map((t, i) => `
+      <div class="sg ${i === 0 ? "active" : ""}" data-num="${t.number}">
+        <span class="font-bold text-[#3f51b5] w-12">${t.number}</span>
+        <span class="text-gray-600">${t.name}</span>
+      </div>`).join("");
+    dd.classList.remove("hidden");
+  }
+
+  function hideDropdown() {
+    const dd = $("dropdown");
+    dd.classList.add("hidden");
+    dd.innerHTML = "";
+    state.suggestions = [];
+    state.highlight = -1;
+  }
+
+  function moveHighlight(dir) {
+    if (!state.suggestions.length) return;
+    state.highlight = (state.highlight + dir + state.suggestions.length) % state.suggestions.length;
+    const items = $("dropdown").querySelectorAll(".sg");
+    items.forEach((el, i) => el.classList.toggle("active", i === state.highlight));
+    items[state.highlight]?.scrollIntoView({ block: "nearest" });
+  }
+
+  /* =====================================================================
+     EVENT WIRING
+  ===================================================================== */
+  const input = $("teamInput");
+
+  input.addEventListener("input", e => renderSuggestions(e.target.value));
+
+  input.addEventListener("keydown", e => {
+    if (e.key === "ArrowDown") { e.preventDefault(); moveHighlight(1); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); moveHighlight(-1); }
+    else if (e.key === "Escape") { hideDropdown(); }
+    else if (e.key === "Enter") {
+      e.preventDefault();
+      if (state.suggestions.length && state.highlight >= 0) {
+        makeGuess(state.suggestions[state.highlight].number);
+      } else if (input.value.trim()) {
+        makeGuess(input.value.trim());
+      }
+    }
+  });
+
+  $("dropdown").addEventListener("click", e => {
+    const item = e.target.closest(".sg");
+    if (item) makeGuess(item.dataset.num);
+  });
+
+  $("guessBtn").addEventListener("click", () => {
+    if (state.suggestions.length && state.highlight >= 0) {
+      makeGuess(state.suggestions[state.highlight].number);
+    } else if (input.value.trim()) {
+      makeGuess(input.value.trim());
+    }
+  });
+
+  // Hide dropdown when clicking outside the search box
+  document.addEventListener("click", e => {
+    if (!e.target.closest("#teamInput") && !e.target.closest("#dropdown")) hideDropdown();
+  });
+
+  $("newGameBtn").addEventListener("click", openModeSelect);
+  $("playAgainBtn").addEventListener("click", openModeSelect);
+  $("playAgainBtnLose").addEventListener("click", openModeSelect);
+  $("copyBtn").addEventListener("click", e => copyResults(e.currentTarget));
+  $("copyBtnLose").addEventListener("click", e => copyResults(e.currentTarget));
+
+  // ---- Mode-select modal wiring ----
+  $("modeStep1").addEventListener("click", e => {
+    const btn = e.target.closest("[data-mode]");
+    if (!btn) return;
+    if (btn.dataset.mode === "daily") {
+      $("modeModal").classList.add("hidden");
+      startGame("daily");
+    } else {
+      // Free Play → ask Hard mode (difficulty step)
+      $("modeStep1").classList.add("hidden");
+      $("modeStep2").classList.remove("hidden");
+    }
+  });
+
+  $("modeStep2").addEventListener("click", e => {
+    const btn = e.target.closest("[data-diff]");
+    if (!btn) return;
+    $("modeModal").classList.add("hidden");
+    startGame("free", btn.dataset.diff);
+  });
+
+  $("modeBack").addEventListener("click", () => {
+    $("modeStep2").classList.add("hidden");
+    $("modeStep1").classList.remove("hidden");
+  });
+
+  $("modeClose").addEventListener("click", closeModeSelect);
+  $("modeModal").addEventListener("click", e => {
+    if (e.target.id === "modeModal") closeModeSelect();
+  });
+
+  $("howToBtn").addEventListener("click", () => $("howToModal").classList.remove("hidden"));
+  $("howToClose").addEventListener("click", () => $("howToModal").classList.add("hidden"));
+  $("howToModal").addEventListener("click", e => {
+    if (e.target.id === "howToModal") $("howToModal").classList.add("hidden");
+  });
+
+  /* =====================================================================
+     BOOT
+  ===================================================================== */
+  function init() {
+    const badge = $("apiBadge");
+    if (apiEnabled) {
+      badge.textContent = "TBA: live";
+      badge.className = "px-3 py-1.5 rounded-full bg-green-100 text-green-700 font-medium";
+    } else {
+      badge.textContent = "TBA: offline (local data)";
+      badge.className = "px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 font-medium";
+    }
+    // Show the mode picker first — no game starts until the player chooses.
+    openModeSelect();
+  }
+
+  init();
+  </script>
+</body>
+</html>
