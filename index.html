@@ -843,7 +843,7 @@
       ? `<img src="${m.photoUrl}" class="w-full h-full object-cover" onerror="this.remove()" />`
       : m.number;
     $("winText").innerHTML =
-      `Team <strong>${m.number} — ${m.name}</strong> in ` +
+      `Nailed <strong>${m.name}</strong> in ` +
       `<strong>${state.guessed.size}/${MAX_GUESSES}</strong> ` +
       `guess${state.guessed.size === 1 ? "" : "es"}.`;
 
@@ -885,8 +885,8 @@
     const grid = state.rows.slice().reverse().map(r => r.emoji.join("")).join("\n");
     const head = `${modeDescriptor().share} 🤖`;
     const line = state.lost
-      ? `X/${MAX_GUESSES} — couldn't crack team #${state.targetMeta.number} 😵`
-      : `Solved team #${state.targetMeta.number} in ${state.guessed.size}/${MAX_GUESSES} ` +
+      ? `X/${MAX_GUESSES} — couldn't crack it 😵`
+      : `Solved in ${state.guessed.size}/${MAX_GUESSES} ` +
         `guess${state.guessed.size === 1 ? "" : "es"}!`;
     return `${head}\n${line}\n\n${grid}`;
   }
