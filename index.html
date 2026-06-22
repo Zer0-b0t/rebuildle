@@ -204,7 +204,7 @@
         </div>
         <div class="flex items-center gap-2 text-sm">
           <span id="modeBadge" class="px-3 py-1.5 rounded-full bg-indigo-100 text-[#303f9f] font-semibold">Mode: <span id="modeLabel">—</span></span>
-          <span class="px-3 py-1.5 rounded-full bg-indigo-50 text-[#3f51b5] font-semibold">Guesses: <span id="guessCount">0 / 8</span></span>
+          <span class="px-3 py-1.5 rounded-full bg-indigo-50 text-[#3f51b5] font-semibold">Guesses: <span id="guessCount">0 / 5</span></span>
           <span id="apiBadge" class="px-3 py-1.5 rounded-full bg-gray-100 text-gray-500 font-medium">TBA: offline</span>
         </div>
       </div>
@@ -350,7 +350,7 @@
         <li>Guess any team number — its REBUILT robot attributes are compared to the target.</li>
         <li><span class="font-semibold text-[#22c55e]">Green</span> = exact match. <span class="font-semibold text-[#ef4444]">Red</span> = no match.</li>
         <li>On <strong>Team #</strong> and <strong>Rookie Year</strong>, an arrow shows whether the target's value is 🔼 higher / 🔽 lower than your guess.</li>
-        <li>You have <strong>8 guesses</strong> — turn the whole row green before you run out, or it's a loss.</li>
+        <li>You have <strong>5 guesses</strong> — turn the whole row green before you run out, or it's a loss.</li>
       </ul>
       <h4 class="font-bold text-gray-800 mt-4 mb-1 text-sm">The attribute columns</h4>
       <div class="text-xs text-gray-600 space-y-1">
@@ -525,7 +525,7 @@
   /* ---------------------------------------------------------------------
      GAMEPLAY CONSTANTS
   --------------------------------------------------------------------- */
-  const MAX_GUESSES = 8;       // loss cap — applies to BOTH Daily and Free Play
+  const MAX_GUESSES = 5;       // loss cap — applies to BOTH Daily and Free Play
   const DAILY_POOL_SIZE = 365; // one distinct robot per day of the year
 
   /* Leap-day easter egg.
